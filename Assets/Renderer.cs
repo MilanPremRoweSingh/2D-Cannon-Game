@@ -9,11 +9,27 @@ public class Renderer : MonoBehaviour
 
     List<Vector3> terrain = new List<Vector3>();
 
-    public float wallStart = 0.1f;
-    public float terrainStart = 0.125f;
-    public float groundY = 0.15f;
-    public float terrainEnd = 0.9f;
 
+    public float wallStart;
+    public float terrainStart;
+    public float wallHeight;
+    public float terrainEnd;
+    public float spikiness;
+    public int detailLevel;
+
+
+    public float cannonRadius;
+    public float cannonWidth;
+    public float cannonLength;
+    public float cannonXPos;
+    public float cannonNumVerts;
+    private float cannonAngle;
+
+
+    private void Start()
+    {
+        generateTerrain(detailLevel, spikiness);
+    }
 
     void OnPostRender()
     {
@@ -23,26 +39,37 @@ public class Renderer : MonoBehaviour
         GL.Clear( true, true, Color.white );
 
         GL.Begin( GL.QUADS ); // Quad
-            GL.Color( new Color(0.0f,0.0f,0.0f) );
-            GL.Vertex3( wallStart, 0.85f, 0 );
-            GL.Vertex3( wallStart, groundY, 0 );
-            GL.Vertex3( terrainStart, groundY, 0 );
-            GL.Vertex3( terrainStart, 0.85f, 0 );
+            GL.Color( new Color(0.25f,0.25f,0.25f) );
+            GL.Vertex3( 0.0f, wallHeight, 0.0f );
+            GL.Vertex3( 0.0f, 0.0f, 0.0f );
+            GL.Vertex3( 0.025f, 0.0f, 0.0f );
+            GL.Vertex3( 0.025f, wallHeight, 0.0f );
         GL.End();
 
-        //generateTerrain(1, 0.1f);
-        //drawTerrain();
+        drawTerrain();
 
+        drawCircle(cannonRadius, new Vector3(cannonXPos, cannonRadius, 0.0f));
 
         GL.PopMatrix();
     }
 
     void generateTerrain( int granularity, float offCoeff )
     {
+        if (granularity == 0)
+        {
+            return;
+        }
+
+        // Genearate Initial Mountain
         if ( terrain.Count <= 0 )
         {
-            terrain.Add( new Vector3( terrainStart, groundY, 0.0f ) );
-            terrain.Add( new Vector3( terrainEnd, groundY, 0.0f ) );
+            terrain.Add( new Vector3( terrainStart, 0.0f, 0.0f ) );
+
+            float diff = terrainEnd - terrainStart;
+            terrain.Add(new Vector3(terrainStart + diff*0.375f, 0.5f, 0.0f));
+            terrain.Add(new Vector3(terrainStart + diff*0.625f, 0.5f, 0.0f));
+
+            terrain.Add( new Vector3( terrainEnd, 0.0f, 0.0f ) );
         }
         else
         {
@@ -55,21 +82,41 @@ public class Renderer : MonoBehaviour
 
                 Vector3 mid = ( p0 + p1 ) * 0.5f;
                 float off = offCoeff * Random.Range( -len, len );
-                newTerrain[2 * i] = terrain[i];
-                newTerrain[2 * i + 1] = mid + Vector3.up * off;
+                newTerrain.Add(terrain[i]);
+                newTerrain.Add(mid + Vector3.up * off);
             }
-            newTerrain[newTerrain.Count - 1] = terrain[terrain.Count - 1];
+
+            newTerrain.Add(terrain[terrain.Count - 1]);
             terrain = newTerrain;
         }
+
+        generateTerrain(granularity - 1, offCoeff);
     }
 
     void drawTerrain()
     {
-        GL.Begin( GL.LINES );
+        GL.Begin( GL.LINE_STRIP );
             for ( int i = 0; i < terrain.Count; i++ )
             {
                 GL.Vertex( terrain[i] );
             }
         GL.End();
     }
+
+    void drawCircle( float radius, Vector3 centre )
+    {
+        GL.Begin(GL.TRIANGLES);
+        float delta = 0.01f;
+        float theta = 0.0f;
+        while( theta <= 2*Mathf.PI )
+        {
+            GL.Vertex(centre);
+            GL.Vertex3(radius * Mathf.Cos(theta) + centre.x, radius * Mathf.Sin(theta) + centre.y, centre.z);
+            theta += delta;
+            GL.Vertex3(radius * Mathf.Cos(theta) + centre.x, radius * Mathf.Sin(theta) + centre.y, centre.z);
+        }
+        GL.End();
+    }
+
+
 }
