@@ -15,6 +15,7 @@ public class Cannonball
         velocity = _velocity;
         radius   = _radius;
     }
+
 }
 
 
@@ -29,6 +30,7 @@ public class Renderer : MonoBehaviour
 
 
     public float wallStart;
+    public float wallWidth;
     public float terrainStart;
     public float wallHeight;
     public float terrainEnd;
@@ -44,6 +46,8 @@ public class Renderer : MonoBehaviour
     private float cannonAngle = -Mathf.PI/4;
 
     public float ballInitialSpeed;
+    [Range(0.5f,0.95f)]
+    public float ballBounceRestitution;
 
     public float gravity = 9.81f;
     public float maxWindMag;
@@ -82,8 +86,8 @@ public class Renderer : MonoBehaviour
             GL.Color( new Color(0.25f,0.25f,0.25f) );
             GL.Vertex3( 0.0f, wallHeight, 0.0f );
             GL.Vertex3( 0.0f, 0.0f, 0.0f );
-            GL.Vertex3( 0.025f, 0.0f, 0.0f );
-            GL.Vertex3( 0.025f, wallHeight, 0.0f );
+            GL.Vertex3( wallWidth, 0.0f, 0.0f );
+            GL.Vertex3( wallWidth, wallHeight, 0.0f );
         GL.End();
 
         drawTerrain();
@@ -228,6 +232,8 @@ public class Renderer : MonoBehaviour
                 curr.velocity.x += (currWindForce / Cannonball.mass) * Time.deltaTime;
             }
             curr.centre += curr.velocity * Time.deltaTime;
+
+            intersectCannonballWithScene(curr);
         }
     }
 
@@ -265,12 +271,6 @@ public class Renderer : MonoBehaviour
         }
         GL.End();
     }
-
-    void drawClouds()
-    {
-    
-    }
-
 
     void simulateCloud()
     {
@@ -320,5 +320,18 @@ public class Renderer : MonoBehaviour
         cloudVerts.Add(new Vector3(vX + 0.075f, vY - 0.0075f, 0.0f));
         cloudVerts.Add(new Vector3(vX + 0.045f, vY - 0.0085f, 0.0f));
         cloudVerts.Add(new Vector3(vX, vY + 0.0f, 0.0f));
+    }
+
+    // Uses static collision
+    void intersectCannonballWithScene( Cannonball b )
+    {
+        //Check for intersection with Wall
+        if (b.centre.x - (b.radius / 2.0f) <= wallStart+wallWidth)
+        {
+            b.centre.x = wallStart + wallWidth + (b.radius / 2.0f);
+            b.velocity.x = -b.velocity.x * ballBounceRestitution;
+        }
+
+        //Check for intersection with Mountain
     }
 }
