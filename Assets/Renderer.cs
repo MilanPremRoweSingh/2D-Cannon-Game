@@ -16,6 +16,15 @@ public class Cannonball
         radius   = _radius;
     }
 
+    public Cannonball() { }
+}
+
+public class Rectangle
+{
+    public Vector3 a;
+    public Vector3 b;
+    public Vector3 c;
+    public Vector3 d;
 }
 
 
@@ -112,8 +121,8 @@ public class Renderer : MonoBehaviour
             terrain.Add( new Vector3( terrainStart, 0.0f, 0.0f ) );
 
             float diff = terrainEnd - terrainStart;
-            terrain.Add(new Vector3(terrainStart + diff*0.375f, 0.5f, 0.0f));
-            terrain.Add(new Vector3(terrainStart + diff*0.625f, 0.5f, 0.0f));
+            terrain.Add(new Vector3(terrainStart + diff*0.375f, 0.45f, 0.0f));
+            terrain.Add(new Vector3(terrainStart + diff*0.625f, 0.45f, 0.0f));
             mountainTopY = 0.5f;
 
             terrain.Add( new Vector3( terrainEnd, 0.0f, 0.0f ) );
@@ -237,6 +246,21 @@ public class Renderer : MonoBehaviour
         }
     }
 
+    Cannonball cannonballNextFrame(Cannonball b)
+    {
+        Cannonball next = new Cannonball();
+        next.velocity = b.velocity;
+        next.velocity.y = next.velocity.y - gravity * Time.deltaTime;
+        if (b.centre.y >= mountainTopY)
+        {
+            next.velocity.x = next.velocity.x + (currWindForce / Cannonball.mass) * Time.deltaTime;
+        }
+        next.centre = b.centre + b.velocity * Time.deltaTime;
+        next.radius = b.radius;
+
+        return next;
+    }
+
     void drawCannonballs()
     {
         for (int i = 0; i < cannonballs.Count; i++)
@@ -322,10 +346,10 @@ public class Renderer : MonoBehaviour
         cloudVerts.Add(new Vector3(vX, vY + 0.0f, 0.0f));
     }
 
-    // Uses static collision
     void intersectCannonballWithScene( Cannonball b )
     {
         //Check for intersection with Wall
+        // Uses static collision detection
         if (b.centre.x - (b.radius / 2.0f) <= wallStart+wallWidth)
         {
             b.centre.x = wallStart + wallWidth + (b.radius / 2.0f);
@@ -333,5 +357,73 @@ public class Renderer : MonoBehaviour
         }
 
         //Check for intersection with Mountain
+        // Uses swept volume of cannonball
+        Cannonball next = cannonballNextFrame(b);
+
+        Rectangle sweptArea = new Rectangle();
+        Vector3 bToNext = next.centre - b.centre;
+        Vector3 bToNextNorm = new Vector3(-bToNext.y, bToNext.x);
+        bToNextNorm.Normalize();
+
+        sweptArea.a = b.centre + bToNextNorm * b.radius;
+        sweptArea.b = b.centre - bToNextNorm * b.radius;
+        sweptArea.c = next.centre + bToNextNorm * b.radius;
+        sweptArea.d = next.centre - bToNextNorm * b.radius;
+        
+        for (int i = 1; i < terrain.Count; i++)
+        {
+            Vector3 p0 = terrain[i-1];
+            Vector3 p1 = terrain[i];
+            Vector3? pInt;
+
+            //We checked if b intersected with a line last frame, so only check next this frame
+            if (intersectLineSegWithCannonball(p0, p1, next, out pInt))
+            {
+                //Handle Collision
+            }
+            else if (intersectLineSegWithRectangle(p0, p1, sweptArea, out pInt))
+            {
+                //b.centre = (Vector3)pInt;
+
+                Vector3 p01 = p1 - p0;
+                Vector3 p0Int = (Vector3)pInt - p0;
+                Vector3 n = new Vector3(-p01.y, p01.x);
+                n = ( Vector3.Dot(p01, n) > 0 ) ? n : -n;
+
+            }
+        }
+    }
+
+    bool intersectLineSegWithCannonball( Vector3 s0, Vector3 s1, Cannonball b, out Vector3? pInt )
+    {
+        pInt = new Vector3();
+        return false;
+    }
+
+    bool intersectLineSegWithRectangle( Vector3 s0, Vector3 s1, Rectangle r, out Vector3? pInt )
+    {
+        pInt = null;
+        pInt = intersectLineSegs(s0, s1, r.a, r.b);
+        if (pInt == null) pInt = intersectLineSegs(s0, s1, r.b, r.c);
+        if (pInt == null) pInt = intersectLineSegs(s0, s1, r.c, r.d);
+        if (pInt == null) pInt = intersectLineSegs(s0, s1, r.d, r.a);
+        return (pInt!=null);
+    }
+
+    Vector3? intersectLineSegs(Vector3 p00, Vector3 p01, Vector3 p10, Vector3 p11)
+    {
+        // calculate the distance to intersection point
+        float uA = ((p11.x - p10.x) * (p00.y - p10.y) - (p11.y - p10.y) * (p00.x - p10.x)) / ((p11.y - p10.y) * (p01.x - p00.x) - (p11.x - p10.x) * (p01.y - p00.y));
+        float uB = ((p01.x - p00.x) * (p00.y - p10.y) - (p01.y - p00.y) * (p00.x - p10.x)) / ((p11.y - p10.y) * (p01.x - p00.x) - (p11.x - p10.x) * (p01.y - p00.y));
+
+        // if uA and uB are between 0-1, lines are colliding
+        if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1)
+        {
+            float intersectionX = p00.x + (uA * (p01.x - p00.x));
+            float intersectionY = p00.y + (uA * (p01.y - p00.y));
+
+            return new Vector3(intersectionX,intersectionY);
+        }
+        return null;
     }
 }
