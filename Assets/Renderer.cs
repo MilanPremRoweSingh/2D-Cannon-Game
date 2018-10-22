@@ -416,7 +416,7 @@ public class Renderer : MonoBehaviour
         sweptArea.d = next.centre - bToNextNorm * b.radius;
 
         float minIntDist = float.MaxValue;
-        Cannonball res = new Cannonball();
+        Cannonball res = new Cannonball(b);
         for (int i = 1; i < terrain.Count; i++)
         {
             Vector3 p0 = terrain[i-1];
@@ -428,33 +428,48 @@ public class Renderer : MonoBehaviour
             if (intersectLineSegWithCannonball(p0, p1, b, out pInt))
             {
                 //b.centre = (Vector3)pInt;
-
                 Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
-                b = temp;
-                break;
+                float intersectDist = (temp.centre - b.centre).magnitude;
+                if (intersectDist < minIntDist)
+                {
+                    res = temp;
+                    minIntDist = intersectDist;
+                }
             }
             else if (intersectLineSegWithCannonball(p0, p1, next, out pInt))
             {
                 //b.centre = (Vector3)pInt;
                 Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
-                b = temp;
-                break;
+                float intersectDist = (temp.centre - b.centre).magnitude;
+                if (intersectDist < minIntDist)
+                {
+                    res = temp;
+                    minIntDist = intersectDist;
+                }
             } 
             else if (intersectLineSegWithRectangle(p0, p1, sweptArea, out pInt))
             {
                 //b.centre = (Vector3)pInt;
                 Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
-                b = temp;
-                break;
-
+                float intersectDist = (temp.centre - b.centre).magnitude;
+                if (intersectDist < minIntDist)
+                {
+                    res = temp;
+                    minIntDist = intersectDist;
+                }
             }
         }
+        b.velocity      = res.velocity;
+        b.centre        = res.centre;
+        b.isGrounded    = res.isGrounded;
+
+
         return false;
     }
 
     Cannonball bounceOnIntersection(Vector3 p0, Vector3 p1, Vector3 pInt, Cannonball b)
     {
-        Cannonball res = new Cannonball();
+        Cannonball res = new Cannonball(b);
         Vector3 p01 = p1 - p0;
         Vector3 pBInt = pInt - b.centre;
         Vector3 n = new Vector3(-p01.y, p01.x);
