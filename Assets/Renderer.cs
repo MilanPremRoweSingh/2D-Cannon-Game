@@ -8,6 +8,7 @@ public class Cannonball
     public Vector3 centre;
     public Vector3 velocity;
     public float radius;
+    public bool isGrounded = false;
 
     public Cannonball( Vector3 _centre, Vector3 _velocity, float _radius )
     {
@@ -17,6 +18,14 @@ public class Cannonball
     }
 
     public Cannonball() { }
+
+    public Cannonball( Cannonball other )
+    {
+        this.centre = other.centre;
+        this.velocity = other.velocity;
+        this.radius = other.radius;
+        this.isGrounded = other.isGrounded;
+    }
 }
 
 public class Rectangle
@@ -55,6 +64,7 @@ public class Renderer : MonoBehaviour
     private float cannonAngle = -Mathf.PI/4;
 
     public float ballInitialSpeed;
+    public float ballMinSpeed;
     [Range(0.5f,0.95f)]
     public float ballBounceRestitution;
 
@@ -236,9 +246,21 @@ public class Renderer : MonoBehaviour
         for (int i = 0; i < cannonballs.Count; i++)
         {
             Cannonball curr = cannonballs[i];
-            intersectCannonballWithScene(curr);
+            if (intersectCannonballWithScene( ref curr) )
+            {
+                cannonballs.RemoveAt(i);
+                i--;
+                continue;
+            }
+            if (curr.velocity.magnitude <= ballMinSpeed)
+            {
+                cannonballs.RemoveAt(i);
+                i--;
+                continue;
+            }
 
-            curr.velocity.y -= gravity * Time.deltaTime;
+            float locGrav = (curr.isGrounded) ? 0.0f : gravity;
+            curr.velocity.y -= locGrav * Time.deltaTime;
             if (curr.centre.y >= mountainTopY)
             {
                 curr.velocity.x += (currWindForce / Cannonball.mass) * Time.deltaTime;
@@ -348,13 +370,34 @@ public class Renderer : MonoBehaviour
         cloudVerts.Add(new Vector3(vX, vY + 0.0f, 0.0f));
     }
 
-    void intersectCannonballWithScene( Cannonball b )
+    // True if cannonball should be removed
+    bool intersectCannonballWithScene( ref Cannonball b )
     {
+        // Check for intersection with ground 
+        if (b.centre.y - b.radius <= 0.0f)
+        {
+            b.centre.y = b.radius;
+            return true;
+        }
+
+        // Check if leaves screen right
+        if (b.centre.y - b.radius >= 1.0f)
+        {
+            return true;
+        }
+
+        // Check if leaves screen top
+        if (b.centre.x - b.radius >= 1.0f)
+        {
+            return true;
+        }
+
+
         //Check for intersection with Wall
         // Uses static collision detection
-        if (b.centre.x - (b.radius / 2.0f) <= wallStart+wallWidth)
+        if (b.centre.x - b.radius <= wallStart+wallWidth)
         {
-            b.centre.x = wallStart + wallWidth + (b.radius / 2.0f);
+            b.centre.x = wallStart + wallWidth + b.radius;
             b.velocity.x = -b.velocity.x * ballBounceRestitution;
         }
 
@@ -371,40 +414,120 @@ public class Renderer : MonoBehaviour
         sweptArea.b = b.centre - bToNextNorm * b.radius;
         sweptArea.c = next.centre + bToNextNorm * b.radius;
         sweptArea.d = next.centre - bToNextNorm * b.radius;
-        
+
+        float minIntDist = float.MaxValue;
+        Cannonball res = new Cannonball();
         for (int i = 1; i < terrain.Count; i++)
         {
             Vector3 p0 = terrain[i-1];
             Vector3 p1 = terrain[i];
             Vector3? pInt;
 
-            //We checked if b intersected with a line last frame, so only check next this frame
-            if (intersectLineSegWithCannonball(p0, p1, next, out pInt))
-            {
-                //Handle Collision
-            }
-            else if (intersectLineSegWithRectangle(p0, p1, sweptArea, out pInt))
+            b.isGrounded = false;
+
+            if (intersectLineSegWithCannonball(p0, p1, b, out pInt))
             {
                 //b.centre = (Vector3)pInt;
 
-                Vector3 p01 = p1 - p0;
-                Vector3 pBInt = (Vector3)pInt- b.centre;
-                Vector3 n = new Vector3(-p01.y, p01.x);
-                n.Normalize();
-                n = ( Vector3.Dot(pBInt, n) < 0 ) ? n : -n;
-                Vector3 bounceDir = pBInt - 2 * Vector3.Dot(pBInt, -n) * -n;
-                bounceDir.Normalize();
-                b.velocity = b.velocity.magnitude * ballBounceRestitution * bounceDir;
-                b.centre = (Vector3)pInt + b.radius * n;
+                Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
+                b = temp;
+                break;
+            }
+            else if (intersectLineSegWithCannonball(p0, p1, next, out pInt))
+            {
+                //b.centre = (Vector3)pInt;
+                Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
+                b = temp;
+                break;
+            } 
+            else if (intersectLineSegWithRectangle(p0, p1, sweptArea, out pInt))
+            {
+                //b.centre = (Vector3)pInt;
+                Cannonball temp = bounceOnIntersection(p0, p1, (Vector3)pInt, b);
+                b = temp;
+                break;
 
             }
         }
+        return false;
+    }
+
+    Cannonball bounceOnIntersection(Vector3 p0, Vector3 p1, Vector3 pInt, Cannonball b)
+    {
+        Cannonball res = new Cannonball();
+        Vector3 p01 = p1 - p0;
+        Vector3 pBInt = pInt - b.centre;
+        Vector3 n = new Vector3(-p01.y, p01.x);
+        n.Normalize();
+        n = (Vector3.Dot(pBInt, n) < 0) ? n : -n;
+        Vector3 bounceDir = pBInt - 2 * Vector3.Dot(pBInt, -n) * -n;
+        bounceDir.Normalize();
+        res.velocity = b.velocity.magnitude * ballBounceRestitution * bounceDir;
+        res.centre = pInt + b.radius * n * 1.01f;
+        if (Mathf.Abs(b.velocity.y) < 0.05f)
+        {
+            res.velocity.y = 0;
+            res.isGrounded = true;
+        }
+        return res;
+    }
+
+    bool intersectLineSegWithCannonballAlt(Vector3 s0, Vector3 s1, Cannonball b, out Vector3? pInt)
+    {
+        pInt = null;
+        return false;
     }
 
     bool intersectLineSegWithCannonball( Vector3 s0, Vector3 s1, Cannonball b, out Vector3? pInt )
     {
-        pInt = new Vector3();
+        pInt = null;
+
+        // Intersection happens if either point defining line is in circle
+        bool s0inB = pointInCircle(s0, b.centre, b.radius);
+        bool s1inB = pointInCircle(s1, b.centre, b.radius);
+        if (s0inB && s1inB)
+        {
+            pInt = (s0 + s1) * 0.5f;
+            return true;
+        }
+        else if (s0inB)
+        {
+            pInt = s0;
+            return true;
+        }
+        else if (s1inB)
+        {
+            pInt = s1;
+            return true;
+        }
+
+
+        Vector3 v01 = s1 - s0;
+        Vector3 v0b = b.centre - s0;
+        float d01_0b = Vector3.Dot(v01, v0b);
+        Vector3 v0Int = (d01_0b / v01.magnitude) * v01;
+
+        Vector3 tInt = v0Int + s0;
+        float loX = Mathf.Min(s0.x, s1.x);
+        float hiX = Mathf.Max(s0.x, s1.x);
+        float loY = Mathf.Min(s0.y, s1.y);
+        float hiY = Mathf.Max(s0.y, s1.y);
+        if (tInt.x >= loX && tInt.x <= hiX && tInt.y >= loY && tInt.y <= hiY)
+        {
+            Vector3 vIntB = b.centre - tInt;
+            if (vIntB.magnitude <= b.radius)
+            {
+                pInt = tInt;
+                return true;
+            }
+        }
         return false;
+    }
+
+    bool pointInCircle(Vector3 p0, Vector3 c, float radius)
+    {
+        Vector3 v0c = c - p0;
+        return v0c.magnitude <= radius;
     }
 
     bool intersectLineSegWithRectangle( Vector3 s0, Vector3 s1, Rectangle r, out Vector3? pInt )
