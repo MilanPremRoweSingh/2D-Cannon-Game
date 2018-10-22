@@ -232,9 +232,12 @@ public class Renderer : MonoBehaviour
 
     void simulateCannonballs()
     {
+       
         for (int i = 0; i < cannonballs.Count; i++)
         {
             Cannonball curr = cannonballs[i];
+            intersectCannonballWithScene(curr);
+
             curr.velocity.y -= gravity * Time.deltaTime;
             if (curr.centre.y >= mountainTopY)
             {
@@ -242,7 +245,6 @@ public class Renderer : MonoBehaviour
             }
             curr.centre += curr.velocity * Time.deltaTime;
 
-            intersectCannonballWithScene(curr);
         }
     }
 
@@ -386,9 +388,14 @@ public class Renderer : MonoBehaviour
                 //b.centre = (Vector3)pInt;
 
                 Vector3 p01 = p1 - p0;
-                Vector3 p0Int = (Vector3)pInt - p0;
+                Vector3 pBInt = (Vector3)pInt- b.centre;
                 Vector3 n = new Vector3(-p01.y, p01.x);
-                n = ( Vector3.Dot(p01, n) > 0 ) ? n : -n;
+                n.Normalize();
+                n = ( Vector3.Dot(pBInt, n) < 0 ) ? n : -n;
+                Vector3 bounceDir = pBInt - 2 * Vector3.Dot(pBInt, -n) * -n;
+                bounceDir.Normalize();
+                b.velocity = b.velocity.magnitude * ballBounceRestitution * bounceDir;
+                b.centre = (Vector3)pInt + b.radius * n;
 
             }
         }
